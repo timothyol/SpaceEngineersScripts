@@ -1,0 +1,135 @@
+﻿
+
+        private const string pistonName = "Piston IM Lifter";
+        private const string mergeUpperName = "Merge Block IM Upper";
+        private const string mergeLowerName = "Merge Block IM Lower";
+        private const string rotorName = "Advanced Rotor IM Offset";
+
+        public Program()
+        {
+            Runtime.UpdateFrequency = UpdateFrequency.Update100;
+        }
+
+        public void Main()
+        {
+            var rotor = GridTerminalSystem.GetBlockWithName(rotorName) as IMyMotorAdvancedStator;
+            var mergeUpper = GridTerminalSystem.GetBlockWithName(mergeUpperName) as IMyShipMergeBlock;
+            var mergeLower = GridTerminalSystem.GetBlockWithName(mergeLowerName) as IMyShipMergeBlock;
+            var piston = GridTerminalSystem.GetBlockWithName(pistonName) as IMyPistonBase;
+
+            if (rotor == null || mergeLower == null || mergeUpper == null || piston == null)
+            {
+                Echo("Could not find all blocks :(");
+                return;
+            }
+
+            var stage = GetStage(mergeUpper, mergeLower, rotor, piston);
+
+            //var props = new List<ITerminalProperty>();
+            //piston.GetProperties(props);
+
+            //for(int i = 0; i < props.Count; ++i)
+            //{
+            //    var prop = props[i];
+            //    var id = prop.Id;
+            //    var tn = prop.TypeName;
+            //    var propVal = "";
+            //    if(prop.TypeName == "Boolean")
+            //    {
+            //        propVal = piston.GetValueBool(id).ToString();
+            //    }
+            //    else if (prop.TypeName == "Single")
+            //    {
+            //        propVal = piston.GetValueFloat(id).ToString();
+            //    }
+
+            //    Echo(String.Format("{0}({1}) : {2}", id, tn, propVal));
+            //}
+
+
+            //Stages
+            //1: Lower locked, upper unlocked, piston retracted
+            //      extend piston
+            //2: Lower Locked, upper unlocked, piston extending
+            //      wait
+            //3: Lower locked, upper unlocked, piston extended
+            //      turn on upper
+            //4: Lower locked, upper locked, piston extended
+            //      unlock lower, set rotor offset = -.4 retract piston
+            //5: Lower unlocked, upper locked, piston retracting
+            //      wait
+            //6: Lower unlocked, upper locked, piston retracted
+            //      set rotor offset -.2; lock lower
+            //7: Lower locked, upper locked, piston retracted
+            //      unlock upper, go to 1
+            switch (stage)
+            {
+                case 1:
+                    rotor.SetValueFloat("Displacement", -.15f);
+                    piston.Extend();
+                    Echo("Stage 1, extending piston");
+                    piston.SetValueFloat("Velocity", 3.0f);
+                    return;
+                case 2:
+                    Echo("Stage 2, waiting");
+                    return;
+                case 3:
+                    Echo("Stage 3, unlocking upper");
+                    mergeUpper.SetValueBool("OnOff", true);
+                    return;
+                case 4:
+                    Echo("Stage 4, Lowering machine");
+                    mergeLower.SetValueBool("OnOff", false);
+                    rotor.SetValueFloat("Displacement", -.4f);
+                    piston.Retract();
+                    piston.SetValueFloat("Velocity", -.5f);
+                    return;
+                case 5:
+                    Echo("Stage 5, waiting...");
+                    rotor.SetValueFloat("Displacement", -.4f);
+                    return;
+                case 6:
+                    Echo("Stage 6, locking lower");
+                    rotor.SetValueFloat("Displacement", -.22f);
+                    mergeLower.SetValueBool("OnOff", true);
+                    return;
+                case 7:
+                    Echo("Stage 7, unlocking upper");
+                    mergeUpper.SetValueBool("OnOff", false);
+                    return;
+                default:
+                    float upperLimit = piston.GetValueFloat("UpperLimit");
+                    float lowerLimit = piston.GetValueFloat("LowerLimit");
+                    Echo("Could not determine stage.");
+                    Echo("MergeLower.IsConnected: " + mergeLower.IsConnected.ToString());
+                    Echo("MergeUpper.IsConnected: " + mergeUpper.IsConnected.ToString());
+                    Echo("Piston Velo: " + piston.Velocity.ToString());
+                    Echo("Piston High, Low, Curr: " + upperLimit + ", " + lowerLimit + ", " + piston.CurrentPosition);
+
+                    return;
+            }
+        }
+
+        private int GetStage(IMyShipMergeBlock mergeUpper, IMyShipMergeBlock mergeLower, IMyMotorAdvancedStator rotor, IMyPistonBase piston)
+        {
+            float upperLimit = piston.GetValueFloat("UpperLimit");
+            float lowerLimit = piston.GetValueFloat("LowerLimit");
+
+            if (mergeLower.IsConnected && !mergeUpper.IsConnected && piston.Velocity < 0.0f && (piston.CurrentPosition - lowerLimit) < 0.5f )
+                return 1;
+            else if (mergeLower.IsConnected && !mergeUpper.IsConnected && (piston.Velocity > 0.0f) && (upperLimit - piston.CurrentPosition >= 0.1f))
+                return 2;
+            else if (mergeLower.IsConnected && !mergeUpper.IsConnected && (piston.Velocity > 0.0f) && (upperLimit - piston.CurrentPosition < 0.1f))
+                return 3;
+            else if (mergeLower.IsConnected && mergeUpper.IsConnected && (piston.Velocity > 0.0f) && (upperLimit - piston.CurrentPosition < 0.1f))            
+                return 4;
+            else if (!mergeLower.IsConnected && mergeUpper.IsConnected && (piston.Velocity < 0.0f) && (piston.CurrentPosition - lowerLimit) >= 0.1f)
+                return 5;
+            else if (!mergeLower.IsConnected && mergeUpper.IsConnected && (piston.Velocity < 0.0f) && (piston.CurrentPosition - lowerLimit) < 0.1f)
+                return 6;   
+            else if (mergeLower.IsConnected && mergeUpper.IsConnected && (piston.Velocity < 0.0f) && (piston.CurrentPosition - lowerLimit) < 0.1f)
+                return 7;
+
+
+            return 100;
+        }

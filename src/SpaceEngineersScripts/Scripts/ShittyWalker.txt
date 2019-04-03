@@ -1,0 +1,154 @@
+﻿
+           
+        public Program()
+        {
+            //Runtime.UpdateFrequency = UpdateFrequency.Update100;
+        }
+
+        private enum PistonState
+        {
+            Retracted = 1,
+            Retracting = 2,
+            Extending = 3,
+            Extended = 4,
+            Stopped = 5,
+            Fucked = 6
+        }
+
+        private const string PistonName = "Piston PW";
+        private const string RotorName = "Rotor PW";
+        private const string MergeFrontName = "Merge Block PW Front";
+        private const string MergeBackName = "Merge Block PW Back";
+
+
+        public void Main()
+        {
+            var pist = GridTerminalSystem.GetBlockWithName(PistonName) as IMyPistonBase;
+            var rotor = GridTerminalSystem.GetBlockWithName(RotorName) as IMyMotorAdvancedStator;
+            var mergeFront = GridTerminalSystem.GetBlockWithName(MergeFrontName) as IMyShipMergeBlock;
+            var mergeBack = GridTerminalSystem.GetBlockWithName(MergeBackName) as IMyShipMergeBlock;
+
+            var state = GetState(pist, rotor, mergeFront, mergeBack);
+
+            if(state == 0)
+            {
+                Echo("Cannot determine state");
+                return;
+            }
+
+            //Status 
+            // 1: Front locked, piston extended, rear locked
+            // -wait for rear block to be unlocked via removing its sister block
+            // 2: Front Locked, piston extended, rear unlocked
+            // -retract piston
+            // 3: Front Locked, piston retracting, rear unlocked
+            // -wait
+            // 4: Front locked, piston retracted, rear unlocked
+            // -Lock rear
+            // 5: BOTH locked, piston retracted
+            // -unlock front, extend piston
+            // 6 Rear locked, front unlocked, piston extending 
+            // -wait
+            // 7 rear locked, front unlocked, piston extended
+            // - lock front - goto 1
+
+            switch (state)
+            {
+                case 1:
+                    Echo("State 1, waiting...");
+                    return;
+                case 2:
+                    Echo("State 2, retracting piston...");
+                    rotor.SetValueFloat("Displacement", .2f);
+                    pist.Retract();
+                    return;
+                case 3:
+                    Echo("State 3, waiting...");
+                    return;
+                case 4:
+                    Echo("State 4, locking rear...");
+                    rotor.SetValueFloat("Displacement", -.3f);
+                    mergeBack.SetValueBool("OnOff", true);
+                    return;
+                case 5:
+                    Echo("State 5, extending...");
+                    mergeFront.SetValueBool("OnOff", false);
+                    rotor.SetValueFloat("Displacement", -.3f);
+                    pist.Extend();
+                    return;
+                case 6:
+                    Echo("State 6: waiting...");
+                    return;
+                case 7:
+                    Echo("Stat 7: locking front");
+                    rotor.SetValueFloat("Displacement", -.2f);
+                    mergeFront.SetValueBool("OnOff", true);
+                    return;
+                    
+            }
+
+            //var props = new List<ITerminalProperty>();
+            //proj.GetProperties(props);
+
+            //for (int i = 0; i < props.Count; ++i)
+            //{
+            //    var prop = props[i];
+            //    var id = prop.Id;
+            //    var tn = prop.TypeName;
+            //    var propVal = "";
+            //    if (prop.TypeName == "Boolean")
+            //    {
+            //        propVal = proj.GetValueBool(id).ToString();
+            //    }
+            //    else if (prop.TypeName == "Single")
+            //    {
+            //        propVal = proj.GetValueFloat(id).ToString();
+            //    }
+
+            //    Echo(String.Format("{0}({1}) : {2}", id, tn, propVal));
+            //}            
+        }
+
+        
+        private PistonState GetPistonState(IMyPistonBase piston)
+        {
+            float upperLimit = piston.GetValueFloat("UpperLimit");
+            float lowerLimit = piston.GetValueFloat("LowerLimit");
+
+            if (piston.Velocity == 0.0f)
+                return PistonState.Stopped;
+            else if (piston.Velocity < 0.0f && (piston.CurrentPosition - lowerLimit) < 0.1f)
+                return PistonState.Retracted;
+            else if (piston.Velocity < 0.0f && (piston.CurrentPosition - lowerLimit) > 0.1f)
+                return PistonState.Retracting;
+            else if (piston.Velocity > 0.0f && (upperLimit - piston.CurrentPosition) > 0.1f)
+                return PistonState.Extending;
+            else if (piston.Velocity > 0.0f && (upperLimit - piston.CurrentPosition) < 0.1f)
+                return PistonState.Extended;
+
+            //Stopped, usually
+            return PistonState.Fucked;
+        }
+
+        private int GetState(IMyPistonBase pist, IMyMotorAdvancedStator rotor, IMyShipMergeBlock mergeFront, IMyShipMergeBlock mergeBack)
+        {
+            var state = GetPistonState(pist);
+
+            if (mergeFront.IsConnected && mergeBack.IsConnected && state == PistonState.Extended)
+                return 1;
+            else if (mergeFront.IsConnected && mergeBack.IsConnected && state == PistonState.Extended)
+                return 2;
+            else if (mergeFront.IsConnected && !mergeBack.IsConnected && state == PistonState.Retracting)
+                return 3;
+            else if (mergeFront.IsConnected && !mergeBack.IsConnected && state == PistonState.Retracted)
+                return 4;
+            else if (mergeFront.IsConnected && mergeBack.IsConnected && state == PistonState.Retracted)
+                return 5;
+            else if (!mergeFront.IsConnected && mergeBack.IsConnected && state == PistonState.Extending)
+                return 6;
+            else if (!mergeFront.IsConnected && mergeBack.IsConnected && state == PistonState.Extended)
+                return 7;
+
+            return 0;
+        }
+        
