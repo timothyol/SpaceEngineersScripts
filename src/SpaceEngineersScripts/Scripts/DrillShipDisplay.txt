@@ -137,7 +137,7 @@
             var lcd = lcdBlk as IMyTextPanel;
 
             if (lcd != null)
-                lcd.WritePublicText(msg, false);
+                lcd.WriteText(msg, false);
         }
 
         //Stolen from TheFinalFrontier.se

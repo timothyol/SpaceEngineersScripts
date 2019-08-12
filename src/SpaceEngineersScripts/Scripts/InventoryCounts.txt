@@ -61,7 +61,7 @@
                 "Steel Plate", "Construction Component", "Interior Plate", "Small Steel Tube", "Large Steel Tube", "Metal Grid", "Bulletproof Glass", "Display", "Girder", "Superconductor", "Canvas", "Computer", "Explosives", "Motor"}},
             { "LCD Panel Spec Comps", new List<string> {"Detector Component", "Medical Component", "Reactor Component", "Radio Component", "Solar Cell", "Power Cell", "GravGen Component", "Thruster Component"}},
             { "LCD Panel Ingots", new List<string> { "Magnesium Powder", "Gravel", "Silicon Wafer", "Nickel Ingot", "Iron Ingot", "Ice", "Platinum Ingot", "Uranium Ingot", "Gold Ingot", "Silver Ingot", "Cobalt Ingot" } },
-            { "LCD Panel Ores", new List<string> {"Ice", "Iron Ore", "Nickel Ore", "Silicon Ore", "Gold Ore", "Silver Ore", "Uranium Ore", "Stone", "Magnesium Ore", "Cobalt Ore"} },
+            { "LCD Panel Ores", new List<string> {"Ice", "Iron Ore", "Nickel Ore", "Silicon Ore", "Gold Ore", "Silver Ore", "Uranium Ore", "Stone", "Magnesium Ore", "Cobalt Ore", "Platinum Ore"} },
             { "LCD Panel Debug", new List<string> {} }
         };
 
@@ -293,7 +293,7 @@
                 if (lcd.CustomName != lcdName) continue;
 
                 if (lcd != null)
-                    lcd.WritePublicText(msg, false);
+                    lcd.WriteText(msg, false);
             }
         }
 
