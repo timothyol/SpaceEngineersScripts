@@ -5,7 +5,7 @@
         {
             Runtime.UpdateFrequency = UpdateFrequency.Update100;
         }
-        
+
         private const string LcdName = "LCD Panel OreDisplay";
 
         private List<IMyTerminalBlock> cargo_blocks = null;
@@ -19,10 +19,10 @@
 
             bool isConnected = false;
 
-            for(int i = 0; i < conn_blocks.Count; ++i)
+            for (int i = 0; i < conn_blocks.Count; ++i)
             {
                 var conn = conn_blocks[i];
-                if(conn.Status == MyShipConnectorStatus.Connected)
+                if (conn.Status == MyShipConnectorStatus.Connected)
                 {
                     isConnected = true;
                     break;
@@ -133,11 +133,14 @@
 
         private void PrintLcd(String msg)
         {
-            var lcdBlk = GridTerminalSystem.GetBlockWithName(LcdName);
-            var lcd = lcdBlk as IMyTextPanel;
-
-            if (lcd != null)
-                lcd.WriteText(msg, false);
+            var lcdBlks = new List<IMyTextPanel>();
+            GridTerminalSystem.GetBlocksOfType(lcdBlks);
+            for(int i = 0; i < lcdBlks.Count; ++i)
+            {
+                var lcd = lcdBlks[i];
+                if(lcd.CustomName == LcdName)
+                    lcd.WriteText(msg, false);
+            }
         }
 
         //Stolen from TheFinalFrontier.se
@@ -194,4 +197,3 @@
             }
             return name;
         }
-

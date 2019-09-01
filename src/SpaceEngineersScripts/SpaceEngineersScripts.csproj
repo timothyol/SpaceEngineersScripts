@@ -92,6 +92,7 @@
     <Content Include="Scripts\InfiniMiner.txt" />
     <Content Include="Scripts\InventoryCounts.txt" />
     <Content Include="Scripts\ShittyWalker.txt" />
+    <Content Include="Scripts\SmallElevator.txt" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

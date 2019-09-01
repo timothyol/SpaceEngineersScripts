@@ -42,249 +42,204 @@ namespace SpaceEngineersScripting
         /*******************************************************************
         ****************Copy from below this comment************************/
 
-        private const string RotorRightName = "Rotor R";
-        private const string RotorLeftName = "Rotor L";
-        private const string PistonRightName = "Piston R";
-        private const string PistonLeftName = "Piston L";
-        private bool Up = true;
-
-        private const float ext = 1.5f;
-        private const float ret = ext * -1f;
-
-
-        private enum PistonState
-        {
-            Retracted = 1,
-            Retracting = 2,
-            Extending = 3,
-            Extended = 4,
-            Stopped = 5,
-            Fucked = 6
-        }
+        //Drill Ship Display
 
         public Program()
         {
-            Runtime.UpdateFrequency = UpdateFrequency.Update1;
+            Runtime.UpdateFrequency = UpdateFrequency.Update100;
         }
+
+        private const string LcdName = "LCD Panel OreDisplay";
+
+        private List<IMyTerminalBlock> cargo_blocks = null;
 
         public void Main(string argument, UpdateType updateSource)
         {
-            if (argument == "up")
-                Up = true;
-            if (argument == "down")
-                Up = false;
+            var sbLog = new StringBuilder();
 
-            var rotorR = GridTerminalSystem.GetBlockWithName(RotorRightName) as IMyMotorStator;
-            var rotorL = GridTerminalSystem.GetBlockWithName(RotorLeftName) as IMyMotorStator;
-            var pistonR = GridTerminalSystem.GetBlockWithName(PistonRightName) as IMyPistonBase;
-            var pistonL = GridTerminalSystem.GetBlockWithName(PistonLeftName) as IMyPistonBase;
+            var conn_blocks = new List<IMyShipConnector>();
+            GridTerminalSystem.GetBlocksOfType<IMyShipConnector>(conn_blocks);
 
-            if (rotorR == null) Echo("RotorR is null :(");
-            if (rotorL == null) Echo("rotorL is null :(");
-            if (pistonR == null) Echo("pistonR is null :(");
-            if (pistonL == null) Echo("pistonL is null :(");
+            bool isConnected = false;
 
-            if (Up)
+            for (int i = 0; i < conn_blocks.Count; ++i)
             {
-                Echo("Going Up...");
-                var state = GetStateUp(rotorR, rotorL, pistonR, pistonL);
-                Echo("State = " + state.ToString());
-
-                if (state == 1)
+                var conn = conn_blocks[i];
+                if (conn.Status == MyShipConnectorStatus.Connected)
                 {
-                    rotorL.Attach();
-                    if (rotorL.IsAttached)
-                        rotorR.Detach();
-                    if (rotorL.IsAttached && !rotorR.IsAttached)
-                    {
-                        pistonR.Velocity = ext;
-                        pistonL.Velocity = ret;
-                    }
-                }
-                else if (state == 2)
-                {
-                    //Wait...
-                }
-                else if (state == 3)
-                {
-                    rotorR.Attach();
-                    if (rotorR.IsAttached)
-                        rotorL.Detach();
-                    if (rotorR.IsAttached && !rotorL.IsAttached)
-                    {
-                        pistonR.Velocity = ret;
-                        pistonL.Velocity = ext;
-                    }
-                }
-                else if (state == 4)
-                {
-                    //Wait...
-                }
-                else if (state == 5)
-                {
-                    pistonR.Velocity = ext;
-                    pistonL.Velocity = ret;
-                }
-                else if (state == 6)
-                {
-                    pistonR.Velocity = ret;
-                    pistonL.Velocity = ext;
+                    isConnected = true;
+                    break;
                 }
             }
-            else
-            {
-                Echo("Going down...");
-                var state = GetStateDown(rotorR, rotorL, pistonR, pistonL);
-                Echo("State = " + state.ToString());
 
-                switch (state)
+            if (cargo_blocks == null && isConnected)
+            {
+                var undockmsg = "Undock to update display";
+                Echo(undockmsg);
+                PrintLcd(undockmsg);
+                return;
+            }
+
+            if (cargo_blocks == null)
+            {
+                //Get inventories; cargo blocks, connectors, drills    
+                cargo_blocks = new List<IMyTerminalBlock>();
+                AddBlocks<IMyCargoContainer>(cargo_blocks);
+                AddBlocks<IMyShipDrill>(cargo_blocks);
+                AddBlocks<IMyShipConnector>(cargo_blocks);
+                AddBlocks<IMyGasGenerator>(cargo_blocks);
+            }
+
+            // declare variables for calculating volume
+
+            VRage.MyFixedPoint currentVolume = 0;
+            VRage.MyFixedPoint maxVolume = 0;
+
+            var itemCounts = new Dictionary<string, int>();
+            for (int i = 0; i < cargo_blocks.Count; ++i)
+            {
+                var cb = cargo_blocks[i];
+                var inv = cb.GetInventory(0);
+                List<MyInventoryItem> items = new List<MyInventoryItem>();
+                inv.GetItems(items);
+
+                //Don't include O2 gen for space calculations
+                if (!(cb is IMyGasGenerator))
                 {
-                    case 1:
-                        rotorR.Attach();
-                        if (rotorR.IsAttached)
-                            rotorL.Detach();
-                        if (rotorR.IsAttached && !rotorL.IsAttached)
-                        {
-                            pistonR.Velocity = ext;
-                            pistonL.Velocity = -ext;
-                        }
-                        return;
-                    case 2:
-                        //Wait...
-                        return;
-                    case 3:
-                        rotorL.Attach();
-                        if (rotorL.IsAttached)
-                            rotorR.Detach();
-                        if (rotorL.IsAttached && !rotorR.IsAttached)
-                        {
-                            pistonR.Velocity = -ext;
-                            pistonL.Velocity = ext;
-                        }
-                        return;
-                    case 4:
-                        //Wait...
-                        return;
-                    case 5:
-                        pistonR.Velocity = -ext;
-                        pistonL.Velocity = ext;
-                        return;
-                    case 6:
-                        pistonR.Velocity = ext;
-                        pistonL.Velocity = -ext;
-                        return;
+                    currentVolume += inv.CurrentVolume;
+                    maxVolume += inv.MaxVolume;
                 }
+
+                for (int j = 0; j < items.Count; j++)
+                {
+                    var itemName = decodeItemName(items[j].Type.SubtypeId.ToString(), items[j].Type.TypeId.ToString());
+                    var currentAmount = (int)items[j].Amount;
+                    if (itemCounts.ContainsKey(itemName))
+                    {
+                        var oldCnt = itemCounts[itemName];
+                        var newCnt = oldCnt + currentAmount;
+                        itemCounts[itemName] = newCnt;
+                    }
+                    else
+                    {
+                        itemCounts.Add(itemName, currentAmount);
+                    }
+                }
+            }
+
+            double percentage = (double)100 - Math.Round(((double)currentVolume / (double)maxVolume) * 100, 2);
+
+            // rounds the volume values for clean display
+            double dbcurrentVolume = Math.Round((double)currentVolume, 2);
+            double dbmaxVolume = Math.Round((double)maxVolume, 2);
+
+
+            var msg = "Space Available: (" + percentage + "%)\r\n";
+
+            var invDispWidth = 26;
+            var iCnt = Math.Floor(percentage * ((double)invDispWidth / 100.0));
+
+            for (int i = 0; i < (invDispWidth - iCnt); ++i)
+                msg += "X";
+            for (int i = 0; i < iCnt; ++i)
+                msg += "-";
+            msg += "\r\n";
+
+
+            msg += "\r\nOres:\r\n";
+            for (int i = 0; i < itemCounts.Count; ++i)
+            {
+                var key = itemCounts.Keys.ElementAt(i);
+                var count = itemCounts[key];
+
+                if (key.EndsWith("Ore") || key.EndsWith("Stone") || key.EndsWith("Ice"))
+                {
+                    msg += "\r\n" + key + ": " + count;
+                }
+                else
+                {
+                    Echo("Ignored item: " + key + ": " + count);
+                }
+            }
+
+            Echo(msg);
+            PrintLcd(msg);
+
+        }
+
+        private void AddBlocks<T>(List<IMyTerminalBlock> blockList) where T : class
+        {
+            var temp = new List<IMyTerminalBlock>();
+            GridTerminalSystem.GetBlocksOfType<T>(temp);
+            blockList.AddRange(temp);
+        }
+
+        private void PrintLcd(String msg)
+        {
+            var lcdBlks = new List<IMyTextPanel>();
+            GridTerminalSystem.GetBlocksOfType(lcdBlks);
+            for(int i = 0; i < lcdBlks.Count; ++i)
+            {
+                var lcd = lcdBlks[i];
+                if(lcd.CustomName == LcdName)
+                    lcd.WriteText(msg, false);
             }
         }
 
-
-        private int GetStateUp(IMyMotorStator rotorR, IMyMotorStator rotorL, IMyPistonBase pistonR, IMyPistonBase pistonL)
+        //Stolen from TheFinalFrontier.se
+        //http://thefinalfrontier.se/inventory-display-and-management/
+        String decodeItemName(String name, String typeId)
         {
-            //States
-            //1: Right Retracted, Left Extended, Right attached
-            // --Attach left, detach right, reverse pistons
-            //2: Left Attached, left retracting, right extending
-            // --Wait
-            //3: Left attached, left retracted, right extended
-            // --Attach right, detach left, reverse pistons
-            //4: Right Attached, right retracting, left extending
-            // --Wait
-            //5: L Attached, Left Extending|Extended, Right Retracting|Retracted
-            // - Reverse pistons
-            //6: R Attached, left Retracting | Retracted, Right Extending|Extended
-            // - Reverse Pistons
-
-            var rState = GetPistonState(pistonR);
-            var lState = GetPistonState(pistonL);
-
-            Echo("RotorR.IsAttached: " + rotorR.IsAttached.ToString());
-            Echo("RotorL.IsAttached: " + rotorL.IsAttached.ToString());
-
-            Echo("RState: " + rState);
-            Echo("LState: " + lState);
-
-
-            if (rotorR.IsAttached && rState == PistonState.Retracted && lState == PistonState.Extended)
-                return 1;
-            else if (rotorL.IsAttached && rState == PistonState.Extending && lState == PistonState.Retracting)
-                return 2;
-            else if (rotorL.IsAttached && rState == PistonState.Extended && lState == PistonState.Retracted)
-                return 3;
-            else if (rotorR.IsAttached && rState == PistonState.Retracting && lState == PistonState.Extending)
-                return 4;
-            else if (rotorL.IsAttached && (rState == PistonState.Retracted || rState == PistonState.Retracting) && (lState == PistonState.Extended || lState == PistonState.Extending))
-                return 5;
-            else if (rotorR.IsAttached && (lState == PistonState.Retracted || lState == PistonState.Retracting) && (rState == PistonState.Extended || rState == PistonState.Extending))
-                return 6;
-
-            return 0;
+            if (name.Equals("Construction")) { return "Construction Component"; }
+            if (name.Equals("MetalGrid")) { return "Metal Grid"; }
+            if (name.Equals("InteriorPlate")) { return "Interior Plate"; }
+            if (name.Equals("SteelPlate")) { return "Steel Plate"; }
+            if (name.Equals("SmallTube")) { return "Small Steel Tube"; }
+            if (name.Equals("LargeTube")) { return "Large Steel Tube"; }
+            if (name.Equals("BulletproofGlass")) { return "Bulletproof Glass"; }
+            if (name.Equals("Reactor")) { return "Reactor Component"; }
+            if (name.Equals("Thrust")) { return "Thruster Component"; }
+            if (name.Equals("GravityGenerator")) { return "GravGen Component"; }
+            if (name.Equals("Medical")) { return "Medical Component"; }
+            if (name.Equals("RadioCommunication")) { return "Radio Component"; }
+            if (name.Equals("Detector")) { return "Detector Component"; }
+            if (name.Equals("SolarCell")) { return "Solar Cell"; }
+            if (name.Equals("PowerCell")) { return "Power Cell"; }
+            if (name.Equals("AutomaticRifleItem")) { return "Rifle"; }
+            if (name.Equals("AutomaticRocketLauncher")) { return "Rocket Launcher"; }
+            if (name.Equals("WelderItem")) { return "Welder"; }
+            if (name.Equals("AngleGrinderItem")) { return "Grinder"; }
+            if (name.Equals("HandDrillItem")) { return "Hand Drill"; }
+            if (typeId.EndsWith("_Ore"))
+            {
+                if (name.Equals("Stone"))
+                {
+                    return name;
+                }
+                else if (name.Equals("Ice"))
+                {
+                    return name;
+                }
+                return name + " Ore";
+            }
+            if (typeId.EndsWith("_Ingot"))
+            {
+                if (name.Equals("Stone"))
+                {
+                    return "Gravel";
+                }
+                if (name.Equals("Magnesium"))
+                {
+                    return name + " Powder";
+                }
+                if (name.Equals("Silicon"))
+                {
+                    return name + " Wafer";
+                }
+                return name + " Ingot";
+            }
+            return name;
         }
-
-
-        private int GetStateDown(IMyMotorStator rotorR, IMyMotorStator rotorL, IMyPistonBase pistonR, IMyPistonBase pistonL)
-        {
-            //States
-            //1: L Attached, R Retracted, L Extended
-            // --Attach R, Detach L, Extend R, Retract L
-            //2: R Attached, R Extending, L Retracting
-            // --Wait
-            //3: R Attached, R Extended, L Retracted
-            // --Attach L, Detach R, Extend L, Retract R
-            //4: L Attached, R Retracting, L Extending
-            // --Wait
-            //5: L Attached, R Extending|Extended, L Retracting|Retracted
-            // --Retract R, Extend L
-            //6: R Attached, R Retracting|Retracted, L Extending|Extended
-            // --Extend R, Retract L
-
-
-            var rState = GetPistonState(pistonR);
-            var lState = GetPistonState(pistonL);
-
-            Echo("RotorR.IsAttached: " + rotorR.IsAttached.ToString());
-            Echo("RotorL.IsAttached: " + rotorL.IsAttached.ToString());
-
-            Echo("RState: " + rState);
-            Echo("LState: " + lState);
-            
-            if (rotorL.IsAttached && rState == PistonState.Retracted && lState == PistonState.Extended)
-                return 1;
-            else if (rotorR.IsAttached && rState == PistonState.Extending && lState == PistonState.Retracting)
-                return 2;
-            else if (rotorR.IsAttached && rState == PistonState.Extended && lState == PistonState.Retracted)
-                return 3;
-            else if (rotorL.IsAttached && rState == PistonState.Retracting && lState == PistonState.Extending)
-                return 4;
-            else if (rotorL.IsAttached && (rState == PistonState.Extended || rState == PistonState.Extending) && (lState == PistonState.Retracted || lState == PistonState.Retracting))
-                return 5;
-            else if (rotorR.IsAttached && (rState == PistonState.Retracted || rState == PistonState.Retracting) && (lState == PistonState.Extended || lState == PistonState.Extending))
-                return 6;
-
-            return 0;
-        }
-
-        private PistonState GetPistonState(IMyPistonBase piston)
-        {
-            float upperLimit = piston.GetValueFloat("UpperLimit");
-            float lowerLimit = piston.GetValueFloat("LowerLimit");
-            float precision = 0.01f;
-
-
-            if (piston.Velocity == 0.0f)
-                return PistonState.Stopped;
-            else if (piston.Velocity < 0.0f && (piston.CurrentPosition - lowerLimit) < precision)
-                return PistonState.Retracted;
-            else if (piston.Velocity < 0.0f && (piston.CurrentPosition - lowerLimit) > precision)
-                return PistonState.Retracting;
-            else if (piston.Velocity > 0.0f && (upperLimit - piston.CurrentPosition) > precision)
-                return PistonState.Extending;
-            else if (piston.Velocity > 0.0f && (upperLimit - piston.CurrentPosition) < precision)
-                return PistonState.Extended;
-
-            //Stopped, usually
-            return PistonState.Fucked;
-        }
-
 
 
         /***************To above this comment*******************************
