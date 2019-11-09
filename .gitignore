@@ -1,3 +1,4 @@
 *.suo
 src/SpaceEngineersScripts/bin/
 src/SpaceEngineersScripts/obj/
+src/.vs/
