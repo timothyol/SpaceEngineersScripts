@@ -83,6 +83,9 @@
   <ItemGroup>
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Sandbox.cs" />
+    <Compile Include="Scripts\BoreWalker.cs" />
+    <Compile Include="Scripts\BoreWalker2.cs" />
+    <Compile Include="Scripts\DecodeItemName.cs" />
     <Compile Include="Scripts\DrillShipDisplay.cs" />
     <Compile Include="Scripts\WeldShipFiller.cs" />
   </ItemGroup>
