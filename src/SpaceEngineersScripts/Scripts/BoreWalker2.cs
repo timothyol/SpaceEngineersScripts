@@ -55,7 +55,7 @@ namespace SpaceEngineersScripting.BoreWalker2
         private TimeSpan _elapsed = new TimeSpan(0);
         private StringBuilder _log;
 
-        private DateTime? delayTime = null;
+        // private DateTime? delayTime = null;
 
         public Program()
         {
@@ -128,12 +128,97 @@ namespace SpaceEngineersScripting.BoreWalker2
             return result;
         }
 
+        bool IsSectionComplete(IMyShipMergeBlock startBlk)
+        {
+            Matrix mat;
+            startBlk.Orientation.GetMatrix(out mat);
+            Vector3I right1 = new Vector3I(mat.Right);
+            Vector3I left1 = new Vector3I(mat.Left);
+            Vector3I forward1 = new Vector3I(mat.Forward);
+            Vector3I backward1 = new Vector3I(mat.Backward);
+            Vector3I up1 = new Vector3I(mat.Up);
+            Vector3I down1 = new Vector3I(mat.Down);
 
+            // Rail section
+            // Down is right, right is backward 
+            // |startblk|
+            // | merge  |connectr| armor   | armor    | merge    |
+            // | tube   |junction| tube    | tube     | tube     | 
+            // Type doesn't matter
+
+            for (int i = 1; i < 3; ++i)
+            {
+                for(int j = 0; j < 5; ++ j)
+                {
+                    if(!CheckForBlock(startBlk, (right1 * i) + (backward1 * j), new string('r', i) + new string('b', j)))
+                    {
+                        _log.AppendLine($"Block at [{i},{j}] is not complete.");
+                        return false;
+                    }
+                }
+            }
+
+            return true;
+        }
+
+        bool IsSecondConnectorComplete(IMyShipMergeBlock startBlk)
+        {
+            Matrix mat;
+            startBlk.Orientation.GetMatrix(out mat);
+            Vector3I right1 = new Vector3I(mat.Right);
+            Vector3I left1 = new Vector3I(mat.Left);
+            Vector3I forward1 = new Vector3I(mat.Forward);
+            Vector3I backward1 = new Vector3I(mat.Backward);
+            Vector3I up1 = new Vector3I(mat.Up);
+            Vector3I down1 = new Vector3I(mat.Down);
+
+            // Rail section
+            // Down is right, right is backward (e.g., the junction block is "
+            // |startblk|
+            // | merge  |connectr| armor   | armor    | merge    |
+            // | tube   |junction| tube    | tube     | tube     | 
+
+            return CheckForBlock(startBlk, (right1 * 1) + (backward1 * 1), new string('r', 1) + new string('b', 1));
+        }
+
+        bool CheckForBlock(IMyShipMergeBlock startBlk, Vector3I direction, string description)
+        {
+            IMySlimBlock sb = startBlk.CubeGrid.GetCubeBlock(startBlk.Position + direction);
+            if (sb == null)
+            {
+                if(startBlk.CubeGrid.CubeExists(startBlk.Position + direction))
+                {
+                    // If it's an armor block then sb will be null, but CubeExists() should return true
+                    // no way to know how welded it is, but it doesn't really matter here
+                    _log.AppendLine("Armor block? (" + description + ")");
+                    return true;
+                }
+                _log.AppendLine("No block (" + description + ")");
+            }
+            else
+            {
+                var type = sb.FatBlock.GetType().Name;
+                _log.AppendLine("Block found (" + description + "): " + type);
+
+
+                var block = sb.FatBlock;
+                if (block != null)
+                {
+                    _log.AppendLine("BuildIntegrity: " + sb.BuildIntegrity);
+                    _log.AppendLine("CurrentDamage: " + sb.CurrentDamage);
+                    _log.AppendLine("MaxIntegrity: " + sb.MaxIntegrity);
+
+                    _log.AppendLine(block.IsFunctional ? "Is Functional" : "Not Functional");
+                    return block.IsFunctional;
+                }
+            }
+            return false;
+        }
 
         void Main(string argument, UpdateType updateSource)
         {
             //States:
-            // Extending (Gear locked, piston extending, merge block enabled if piston > 2.5m)
+            // Extending (Gear locked, piston extending, merge block unmerged but enabled if piston > 2.5m)
             // Retracting (Gear unlocked, piston retracting, merge block locked)
 
             _log = new StringBuilder("");
@@ -185,37 +270,40 @@ namespace SpaceEngineersScripting.BoreWalker2
             {
                 if(piston.CurrentPosition == 10.0f && !IsMerged(merge))
                 {
+                    // Sometimes it doesn't merge, and moving back and forth will trigger it
                     piston.Velocity = RetractingSpeed;
                 }
-                else if(IsMerged(merge))
+                else if(IsMerged(merge) && IsSecondConnectorComplete(merge))
                 {
-                    if (delayTime == null)
-                    {
-                        delayTime = DateTime.Now.AddSeconds(DelayTimeSeconds);
-                        connector2.Enabled = true;
-                        connector2.Connect();
-                    }
-                    else if (delayTime > DateTime.Now)
-                    {
-                        var remaining = delayTime - DateTime.Now;
-                        _log.AppendLine("Waiting. Time Left:" + remaining.Value.TotalSeconds + "s.");
+                    // Block merged, transition to state 2 once rail is complete
+                    //if (delayTime == null)
+                    //{
+                    //    delayTime = DateTime.Now.AddSeconds(DelayTimeSeconds);
+                    //    connector2.Enabled = true;
+                    //    connector2.Connect();
+                    //}
+                    //else if (delayTime > DateTime.Now)
+                    //{
+                    //    var remaining = delayTime - DateTime.Now;
+                    //    _log.AppendLine("Waiting. Time Left:" + remaining.Value.TotalSeconds + "s.");
 
-                        connector2.Enabled = true;
-                        connector2.Connect();
-                    }
-                    else if (delayTime < DateTime.Now)
-                    {
-                        delayTime = null;
-                        _state = 2;
-                        ToggleGear(gear, false);
-                        connector.Enabled = false;
-                        connector2.Enabled = true;
-                        connector2.Connect();
-                        piston.Velocity = RetractingSpeed;
-                    }
+                    //    connector2.Enabled = true;
+                    //    connector2.Connect();
+                    //}
+                    //else if (delayTime < DateTime.Now)
+                    //{
+                    //delayTime = null;
+
+                    _state = 2;
+                    ToggleGear(gear, false);
+                    connector.Enabled = false;
+                    connector2.Enabled = true;
+                    connector2.Connect();
+                    piston.Velocity = RetractingSpeed;
                 }
                 else
                 {
+                    // Keep on extending piston
                     piston.Velocity = ExtendingSpeed;
                     ToggleGear(gear, true);
                     connector.Enabled = true;
@@ -238,17 +326,7 @@ namespace SpaceEngineersScripting.BoreWalker2
             {
                 if (piston.CurrentPosition == 0f)
                 {
-                    var currentTime = DateTime.Now;
-                    if(delayTime != null)
-                    {
-                        connector2.Enabled = true;
-                        connector2.Connect();
-                        if (currentTime > delayTime)
-                        {
-                            delayTime = null;
-                        }
-                    }
-                    else
+                    if (IsSectionComplete(merge))
                     {
                         _state = 1;
                         ToggleGear(gear, true);
@@ -261,9 +339,30 @@ namespace SpaceEngineersScripting.BoreWalker2
                             merge.Enabled = false;
                         }
                     }
+                    else
+                    {
+                        connector.Enabled = true;
+                        connector.Connect();
+                        _log.AppendLine("Waiting for section to complete");
+                    }
+                    // Time to transition to state 1
+                    //var currentTime = DateTime.Now;
+                    //if(delayTime != null)
+                    //{
+                    //    connector2.Enabled = true;
+                    //    connector2.Connect();
+                    //    if (currentTime > delayTime)
+                    //    {
+                    //        delayTime = null;
+                    //    }
+                    //}
+                    //else
+                    //{
+                    //}
                 }
                 else
                 {
+                    // Keep on retracting piston
                     merge.Enabled = true;
                     piston.Velocity = RetractingSpeed;
                     if (IsMerged(merge))
@@ -286,4 +385,4 @@ namespace SpaceEngineersScripting.BoreWalker2
         /***************To above this comment into space engineers**********
         ********************************************************************/
     }
-}s
+}

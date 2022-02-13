@@ -46,7 +46,7 @@ namespace SpaceEngineersScripting.WeldShipFiller
 
         public Program()
         {
-            Runtime.UpdateFrequency = UpdateFrequency.Update100;
+            // Runtime.UpdateFrequency = UpdateFrequency.Update100;
         }
 
         private static StringBuilder Logger = null;
@@ -127,7 +127,6 @@ namespace SpaceEngineersScripting.WeldShipFiller
 
             var lcd = GridTerminalSystem.GetBlockWithName(LcdName) as IMyTextPanel;
 
-            //lcd.WritePublicText(Logger.ToString(), false);
             lcd.WriteText(Logger.ToString(), false);
             Echo(Logger.ToString());
         }

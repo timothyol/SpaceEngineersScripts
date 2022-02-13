@@ -87,7 +87,11 @@
     <Compile Include="Scripts\BoreWalker2.cs" />
     <Compile Include="Scripts\DecodeItemName.cs" />
     <Compile Include="Scripts\DrillShipDisplay.cs" />
+    <Compile Include="Scripts\RailWalker.cs" />
+    <Compile Include="Scripts\Test.cs" />
+    <Compile Include="Scripts\TreadMaker.cs" />
     <Compile Include="Scripts\WeldShipFiller.cs" />
+    <Compile Include="Scripts\WeldShipFiller2.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />
