@@ -90,6 +90,7 @@
     <Compile Include="Scripts\RailWalker.cs" />
     <Compile Include="Scripts\Test.cs" />
     <Compile Include="Scripts\TreadMaker.cs" />
+    <Compile Include="Scripts\TreadWrapper.cs" />
     <Compile Include="Scripts\WeldShipFiller.cs" />
     <Compile Include="Scripts\WeldShipFiller2.cs" />
   </ItemGroup>
