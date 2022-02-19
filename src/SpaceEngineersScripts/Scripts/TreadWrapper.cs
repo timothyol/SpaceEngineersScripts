@@ -68,14 +68,35 @@ namespace SpaceEngineersScripting.TreadWrapper
             //var hinges23 = GetHinges(23);
 
             //DetachHinges(10);
-            DetachHinges(28);
+            //DetachHinges(28);
 
-            SetHingesTo(GetHinges(5), 90.0f);
-            SetHingesTo(GetHinges(7), 65.0f);
-            SetHingesTo(GetHinges(11), 25.0f);
-            SetHingesTo(GetHinges(16), 25.0f);
-            SetHingesTo(GetHinges(20), 65.0f);
-            SetHingesTo(GetHinges(22), 90.0f);
+
+            var mergeTens1 = GridTerminalSystem.GetBlockWithName(_prefix + " Merge Tensioner 1") as IMyShipMergeBlock;
+            var mergeTens2 = GridTerminalSystem.GetBlockWithName(_prefix + " Merge Tensioner 2") as IMyShipMergeBlock;
+            var mergeRoot = GridTerminalSystem.GetBlockWithName(_prefix + " Small Merge Block TreadMaker") as IMyShipMergeBlock;
+
+            if (!IsMerged(mergeTens1))
+            {
+                SetHingesTo(GetHinges(5), 90.0f);
+                SetHingesTo(GetHinges(7), 65.0f);
+                SetHingesTo(GetHinges(11), 25.0f);
+            }
+            else
+            {
+                mergeRoot.Enabled = false;
+                SetHingesTo(GetHinges(17), 25.0f);
+                SetHingesTo(GetHinges(21), 65.0f);
+                SetHingesTo(GetHinges(23), 90.0f);
+            }
+
+            if(IsMerged(mergeTens1) && IsMerged(mergeTens2))
+            {
+                Echo("Attached to tensioner!!");
+            }
+            else
+            {
+                return;
+            }
         }
 
         void DetachHinges(int num)
@@ -119,6 +140,41 @@ namespace SpaceEngineersScripting.TreadWrapper
             return _prefix + " " + "Hinge Link " + (num < 10 ? "0" : "") + num;
         }
 
+
+        bool IsMerged(IMyShipMergeBlock mrg1)
+        {
+            if (mrg1 == null) return false;
+
+            //Find direction that block merges to
+            Matrix mat;
+            mrg1.Orientation.GetMatrix(out mat);
+            Vector3I up1 = new Vector3I(mat.Up);
+
+            //Check if there is a block in front of merge face
+            IMySlimBlock sb = mrg1.CubeGrid.GetCubeBlock(mrg1.Position + up1);
+            if (sb == null)
+            {
+                //_log.AppendLine("IsMerged: block is null");
+                return false;
+            }
+
+            //Check if the other block is actually a merge block
+            IMyShipMergeBlock mrg2 = sb.FatBlock as IMyShipMergeBlock;
+            if (mrg2 == null)
+            {
+                //_log.AppendLine("IsMerged: block is not merge block");
+                return false;
+            }
+
+            //Check that other block is correctly oriented
+            mrg2.Orientation.GetMatrix(out mat);
+            Vector3I up2 = new Vector3I(mat.Up);
+
+            var result = up2 == -up1;
+            //_log.AppendLine("Block is " + (result ? "" : "NOT ") + "merged.");
+
+            return result;
+        }
 
         /***************To above this comment into space engineers**********
         ********************************************************************/

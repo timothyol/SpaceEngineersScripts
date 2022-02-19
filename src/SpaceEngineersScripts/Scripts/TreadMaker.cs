@@ -54,7 +54,7 @@ namespace SpaceEngineersScripting.TreadMaker
         private int _rNumMade = 0;
         private bool _paused = false;
 
-        private const int MaxLinks = 30;
+        private const int MaxLinks = 28;
 
         public void Main(string argument, UpdateType updateSource)
         {
@@ -185,8 +185,6 @@ namespace SpaceEngineersScripting.TreadMaker
                         // keep trying to get there
                         magPlate1.AutoLock = false;
                         magPlate2.AutoLock = false;
-                        pistonGrab1.Velocity = 1;
-                        pistonGrab2.Velocity = 1;
                         pistonGrab1.MaxLimit = 2;
                         pistonGrab2.MaxLimit = 2;
                         merge.Enabled = true;
@@ -207,6 +205,17 @@ namespace SpaceEngineersScripting.TreadMaker
                             // start fresh. detach any existing trash connected to our first link
                             if (lastHinge1 != null) lastHinge1.Detach();
                             if (lastHinge2 != null) lastHinge2.Detach();
+                        }
+                        if(!isMerged)
+                        {
+                            // Pistons can get in the way of blocks being placed, retract them until the merge block gets made
+                            pistonGrab1.Velocity = -1;
+                            pistonGrab2.Velocity = -1;
+                        }
+                        else
+                        {
+                            pistonGrab1.Velocity = 1;
+                            pistonGrab2.Velocity = 1;
                         }
                     }
                     break;
