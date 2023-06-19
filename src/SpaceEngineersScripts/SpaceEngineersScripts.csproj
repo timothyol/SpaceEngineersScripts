@@ -87,8 +87,11 @@
     <Compile Include="Scripts\BoreWalker2.cs" />
     <Compile Include="Scripts\DecodeItemName.cs" />
     <Compile Include="Scripts\DrillShipDisplay.cs" />
+    <Compile Include="Scripts\InventoryCounts.cs" />
+    <Compile Include="Scripts\MobileBorer.cs" />
     <Compile Include="Scripts\RailWalker.cs" />
     <Compile Include="Scripts\Test.cs" />
+    <Compile Include="Scripts\TreadMagnets.cs" />
     <Compile Include="Scripts\TreadMaker.cs" />
     <Compile Include="Scripts\TreadWrapper.cs" />
     <Compile Include="Scripts\WeldShipFiller.cs" />
@@ -104,6 +107,7 @@
     <Content Include="Scripts\ShittyWalker.txt" />
     <Content Include="Scripts\SmallElevator.txt" />
     <Content Include="Scripts\WeldShipFiller.txt" />
+    <Content Include="Stuff.txt" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

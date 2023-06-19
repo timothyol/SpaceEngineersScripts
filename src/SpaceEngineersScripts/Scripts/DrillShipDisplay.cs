@@ -51,6 +51,8 @@ namespace SpaceEngineersScripting.DrillShipDisplay
         }
 
         private const string LcdName = "LCD Panel OreDisplay";
+        private const string CockpitName = "Cockpit";
+        private const int SurfaceId = 2;
 
         private List<IMyTerminalBlock> cargo_blocks = null;
 
@@ -88,6 +90,8 @@ namespace SpaceEngineersScripting.DrillShipDisplay
                 AddBlocks<IMyCargoContainer>(cargo_blocks);
                 AddBlocks<IMyShipDrill>(cargo_blocks);
                 AddBlocks<IMyShipConnector>(cargo_blocks);
+
+                // O2 gens not included in "Total Space Available" calculation
                 AddBlocks<IMyGasGenerator>(cargo_blocks);
             }
 
@@ -184,6 +188,14 @@ namespace SpaceEngineersScripting.DrillShipDisplay
                 var lcd = lcdBlks[i];
                 if (lcd.CustomName == LcdName)
                     lcd.WriteText(msg, false);
+            }
+
+            var cockpit = GridTerminalSystem.GetBlockWithName(CockpitName) as IMyTextSurfaceProvider;
+            if(cockpit != null)
+            {
+                var surface = cockpit.GetSurface(SurfaceId);
+                surface.ContentType = VRage.Game.GUI.TextPanel.ContentType.TEXT_AND_IMAGE;
+                surface.WriteText(msg, false);
             }
         }
 

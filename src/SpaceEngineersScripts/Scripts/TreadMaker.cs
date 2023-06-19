@@ -47,17 +47,24 @@ namespace SpaceEngineersScripting.TreadMaker
             Runtime.UpdateFrequency = UpdateFrequency.Update1;
         }
 
+        private class TreadMakerState 
+        { 
+            public int State; 
+            public int NumMade; 
+            public string Prefix;
+            public int MaxLinks;
+        };
+
         private StringBuilder _log;
-        private int _lState = -1;
-        private int _lNumMade = 0;
-        private int _rState = -1;
-        private int _rNumMade = 0;
+        private StringBuilder _errorLog;
+        private const int MaxLinks = 22;
+        private TreadMakerState _lState = new TreadMakerState { Prefix = "TML", State = -1, NumMade = 0, MaxLinks = MaxLinks };
+        private TreadMakerState _rState = new TreadMakerState { Prefix = "TMR", State = -1, NumMade = 0, MaxLinks = MaxLinks };
         private bool _paused = false;
+        //private bool _hasPaused = false;
 
         private int _lWrapState = -1;
         private int _rWrapState = -1;
-
-        private const int MaxLinks = 28;
 
         private Dictionary<string, IMyMotorStator> _hinges = null;
         private Dictionary<string, int> _limpState = new Dictionary<string, int>();
@@ -66,22 +73,23 @@ namespace SpaceEngineersScripting.TreadMaker
         {
             if (argument == "start")
             {
-                _lState = 0;
-                _lNumMade = 0;
-                _rState = 0;
-                _rNumMade = 0;
+                _lState.State = 0;
+                _lState.NumMade = 0;
+                _rState.State = 0;
+                _rState.NumMade = 0;
                 _lWrapState = 0;
                 _rWrapState = 0;
                 _hinges = null;
                 _limpState["TMR"] = 0;
                 _limpState["TML"] = 0;
+                //_hasPaused = false;
             }
             else if (argument == "stop")
             {
-                _lState = -1;
-                _rState = -1;
-                _lNumMade = 0;
-                _rNumMade = 0;
+                _lState.State = -1;
+                _rState.State = -1;
+                _lState.NumMade = 0;
+                _rState.NumMade = 0;
                 _lWrapState = -1;
                 _rWrapState = -1;
                 _hinges = null;
@@ -94,9 +102,10 @@ namespace SpaceEngineersScripting.TreadMaker
                 _paused = !_paused;
             }
 
+            _errorLog = new StringBuilder("");
             _log = new StringBuilder("");
-            _log.AppendLine("LState is: " + _lState.ToString());
-            _log.AppendLine("RState is: " + _rState.ToString());
+            _log.AppendLine("LState is: " + _lState.State.ToString());
+            _log.AppendLine("RState is: " + _rState.State.ToString());
 
             if (_paused)
             {
@@ -105,37 +114,36 @@ namespace SpaceEngineersScripting.TreadMaker
                 return;
             }
 
-            if (_lNumMade < MaxLinks)
+            if (_lState.State != -2)
             {
-                var oldState = _lState;
-                _lState = MakeTread(_lState, "TML", _lNumMade);
-                if (oldState != 0 && _lState == 0)
-                    _lNumMade++;
-                _log.AppendLine("L has made " + _lNumMade + " links");
+                MakeTread(_lState);
+                _log.AppendLine("L has made " + _lState.NumMade + " links");
             }
             else
             {
                 _log.AppendLine("L has made enough links!");
             }
 
-            if (_rNumMade < MaxLinks)
+            if (_rState.State != -2)
             {
-                var oldState = _rState;
-                _rState = MakeTread(_rState, "TMR", _rNumMade);
-                if (oldState != 0 && _rState == 0)
-                    _rNumMade++;
-                _log.AppendLine("R has made " + _rNumMade + " links");
+                MakeTread(_rState);             
+                _log.AppendLine("R has made " + _rState.NumMade + " links");
             }
             else
             {
                 _log.AppendLine("R has made enough links!");
             }
 
-            if(_rNumMade >= MaxLinks && _lNumMade >= MaxLinks)
+            if(_rState.State == -2 && _lState.State == -2)
             {
-                // Reset the treadmaker machinery
-                //ResetTM("TMR");
-                //ResetTM("TML");
+                // Pause between stages
+                //if(!_hasPaused)
+                //{
+                //    _paused = true;
+                //    _hasPaused = true;
+                //    WriteLogs();
+                //    return;
+                //}
 
                 // Get hinges.
                 if (_hinges == null)
@@ -151,7 +159,7 @@ namespace SpaceEngineersScripting.TreadMaker
                     _log.AppendLine("Wrapping L");
                     _lWrapState = WrapTread("TML", _lWrapState);
                 }
-                catch(Exception e)
+                catch (Exception e)
                 {
                     _log.AppendLine("Exception wrapping: " + e.Message);
                     WriteLogs();
@@ -159,7 +167,7 @@ namespace SpaceEngineersScripting.TreadMaker
                 }
             }
 
-            _log.AppendLine("Finished cleanly.");
+            _log.AppendLine("End Tick");
             WriteLogs();
         }
 
@@ -186,7 +194,7 @@ namespace SpaceEngineersScripting.TreadMaker
             var pistonGrab2 = GridTerminalSystem.GetBlockWithName(prefix + " Piston Grab 2") as IMyPistonBase;
             var magPlate1 = GridTerminalSystem.GetBlockWithName(prefix + " Magnetic Plate Grab 1") as IMyLandingGear;
             var magPlate2 = GridTerminalSystem.GetBlockWithName(prefix + " Magnetic Plate Grab 2") as IMyLandingGear;
-            var merge = GridTerminalSystem.GetBlockWithName(prefix + " Small Merge Block TreadMaker") as IMyShipMergeBlock;
+            var merge = GridTerminalSystem.GetBlockWithName(prefix + " Merge TreadMaker") as IMyShipMergeBlock;
 
             if (merge != null) merge.Enabled = false;
             if (magPlate1 != null) magPlate1.Unlock();
@@ -194,8 +202,8 @@ namespace SpaceEngineersScripting.TreadMaker
             if (pistonGrab1 != null) pistonGrab1.Velocity = -1.0f;
             if (pistonGrab2 != null) pistonGrab2.Velocity = -1.0f;
         }
-        
-        int MakeTread(int state, string prefix, int numMade)
+
+        void MakeTread(TreadMakerState state)
         {
             //Sequence:
             // 0: Piston Grab fully extended, link is made and connected to old tread
@@ -210,56 +218,69 @@ namespace SpaceEngineersScripting.TreadMaker
             // 9: extend piston grab 2m
             // 10: goto 0
 
-            var newState = state;
+            var lastHingeName = state.Prefix + " " + "Hinge Link " + (state.NumMade < 10 ? "0" : "") + state.NumMade;
 
-            var lastHingeName = prefix + " " + "Hinge Link " + (numMade < 10 ? "0" : "") + numMade;
-
-            var pistonGrab1 = GridTerminalSystem.GetBlockWithName(prefix + " Piston Grab 1") as IMyPistonBase;
-            var pistonGrab2 = GridTerminalSystem.GetBlockWithName(prefix + " Piston Grab 2") as IMyPistonBase;
-            var magPlate1 = GridTerminalSystem.GetBlockWithName(prefix + " Magnetic Plate Grab 1") as IMyLandingGear;
-            var magPlate2 = GridTerminalSystem.GetBlockWithName(prefix + " Magnetic Plate Grab 2") as IMyLandingGear;
-            var merge = GridTerminalSystem.GetBlockWithName(prefix + " Small Merge Block TreadMaker") as IMyShipMergeBlock;
-            var newHinge1 = GridTerminalSystem.GetBlockWithName(prefix + " Link Hinge 1") as IMyMotorStator;
-            var newHinge2 = GridTerminalSystem.GetBlockWithName(prefix + " Link Hinge 2") as IMyMotorStator;
+            var pistonGrab1 = GridTerminalSystem.GetBlockWithName(state.Prefix + " Piston Grab 1") as IMyPistonBase;
+            var pistonGrab2 = GridTerminalSystem.GetBlockWithName(state.Prefix + " Piston Grab 2") as IMyPistonBase;
+            var magPlate1 = GridTerminalSystem.GetBlockWithName(state.Prefix + " Magnetic Plate Grab 1") as IMyLandingGear;
+            var magPlate2 = GridTerminalSystem.GetBlockWithName(state.Prefix + " Magnetic Plate Grab 2") as IMyLandingGear;
+            var merge = GridTerminalSystem.GetBlockWithName(state.Prefix + " Merge TreadMaker") as IMyShipMergeBlock;
+            var newHinge1 = GridTerminalSystem.GetBlockWithName(state.Prefix + " Link Hinge 1") as IMyMotorStator;
+            var newHinge2 = GridTerminalSystem.GetBlockWithName(state.Prefix + " Link Hinge 2") as IMyMotorStator;
+            var newMagPlate = GridTerminalSystem.GetBlockWithName(state.Prefix + " Link Magplate") as IMyLandingGear;
             var lastHinge1 = GridTerminalSystem.GetBlockWithName(lastHingeName + "A") as IMyMotorStator;
             var lastHinge2 = GridTerminalSystem.GetBlockWithName(lastHingeName + "B") as IMyMotorStator;
+            var grind = GridTerminalSystem.GetBlockWithName(state.Prefix + " Grinder") as IMyShipGrinder;
+            var projb = GridTerminalSystem.GetBlockWithName(state.Prefix + " Projector B") as IMyProjector;
 
             if (newHinge1 == null || newHinge2 == null)
                 _log.AppendLine("At least one new hinge not found.");
 
-            if (pistonGrab1 == null) { _log.AppendLine(prefix + " Can't find pistonGrab1"); return -1; }
-            if (pistonGrab2 == null) { _log.AppendLine(prefix + " Can't find pistonGrab2"); return -1; }
-            if (magPlate1 == null) { _log.AppendLine(prefix + " Can't find magPlate1"); return -1; }
-            if (magPlate2 == null) { _log.AppendLine(prefix + " Can't find magPlate2"); return -1; }
-            if (merge == null) { _log.AppendLine(prefix + " Can't find merge"); return -1; }
+            if (pistonGrab1 == null) { _log.AppendLine(state.Prefix + " Can't find pistonGrab1"); state.State = -1; }
+            if (pistonGrab2 == null) { _log.AppendLine(state.Prefix + " Can't find pistonGrab2"); state.State = -1; }
+            if (magPlate1 == null) { _log.AppendLine(state.Prefix + " Can't find magPlate1"); state.State = -1; }
+            if (magPlate2 == null) { _log.AppendLine(state.Prefix + " Can't find magPlate2"); state.State = -1; }
+            if (merge == null) { _log.AppendLine(state.Prefix + " Can't find merge"); state.State = -1; }
+            if (grind == null) { _log.AppendLine(state.Prefix + " Can't find grind"); state.State = -1; }
+            if (projb == null) { _log.AppendLine(state.Prefix + " Can't find projb"); state.State = -1; }
 
-            switch (state)
+            if (state.State != -1)
+            {
+                grind.Enabled = state.NumMade > 2;
+                projb.Enabled = (state.NumMade % 2 == 1) && state.NumMade != 2;
+            }
+            else
+            {
+                grind.Enabled = false;
+                // Keep this on when not making treads as it makes it easier to place blueprint
+                projb.Enabled = true;
+            }
+
+            switch (state.State)
             {
                 case -1:
                     // Waiting to start.
-                    _log.AppendLine(prefix + " Waiting for start command.");
+                    _log.AppendLine(state.Prefix + " Waiting for start command.");
                     break;
                 case 0:
-
-                    // We initializing boys
+                    // Build/grab new link. either is first link or old link already attached
                     if ( // next state when:
                         IsMerged(merge)
                         && (magPlate1.IsLocked || magPlate2.IsLocked)
                         && pistonGrab1.CurrentPosition == 2.0f
                         && pistonGrab2.CurrentPosition == 2.0f
-                        && (numMade == 0
+                        // If this is the first link, detach initial hinges before continuing
+                        && (state.NumMade == 0
                             ? (lastHinge1 != null && !lastHinge1.IsAttached
                                && lastHinge2 != null && !lastHinge2.IsAttached)
                             : true)
                         )
                     {
-                        newState = 1;
+                        state.State = 1;
                     }
                     else
                     {
                         var isMerged = IsMerged(merge);
-                        _log.AppendLine(prefix + " " + "IsMerged: " + isMerged + ", isLocked: " + magPlate1.IsLocked + ", CurrentPos: " + pistonGrab1.CurrentPosition);
-                        _log.AppendLine(prefix + " " + "IsMerged: " + isMerged + ", isLocked: " + magPlate2.IsLocked + ", CurrentPos: " + pistonGrab2.CurrentPosition);
 
                         // keep trying to get there
                         magPlate1.AutoLock = false;
@@ -269,6 +290,7 @@ namespace SpaceEngineersScripting.TreadMaker
                         merge.Enabled = true;
                         if (newHinge1 != null) newHinge1.CustomName = lastHingeName + "A";
                         if (newHinge2 != null) newHinge2.CustomName = lastHingeName + "B";
+                        if (newMagPlate != null) newMagPlate.CustomName = state.Prefix + " " + "MagPlate " + (state.NumMade < 10 ? "0" : "") + state.NumMade;
                         if (pistonGrab1.CurrentPosition == 2.0f && pistonGrab2.CurrentPosition == 2.0f)
                         {
                             magPlate1.Lock();
@@ -279,15 +301,15 @@ namespace SpaceEngineersScripting.TreadMaker
                             magPlate1.Unlock();
                             magPlate2.Unlock();
                         }
-                        if (numMade == 0)
+                        if (state.NumMade == 0)
                         {
                             // start fresh. detach any existing trash connected to our first link
                             if (lastHinge1 != null) lastHinge1.Detach();
                             if (lastHinge2 != null) lastHinge2.Detach();
                         }
-                        if(!isMerged)
+                        if(!isMerged || newHinge1 == null || newHinge2 == null)
                         {
-                            // Pistons can get in the way of blocks being placed, retract them until the merge block gets made
+                            // Pistons can get in the way of blocks being placed, retract them until the blocks are made
                             pistonGrab1.Velocity = -1;
                             pistonGrab2.Velocity = -1;
                         }
@@ -300,12 +322,12 @@ namespace SpaceEngineersScripting.TreadMaker
                     break;
                 case 1:
                     // Turn off merge block, retract piston, if currentPos < 1, turn on merge block
-                    if ( // next state when:
+                    if (
                         IsMerged(merge)
                         && pistonGrab1.CurrentPosition <= 0.5f
                         && pistonGrab2.CurrentPosition == 0.5f)
                     {
-                        newState = 2;
+                        state.State = 2;
                     }
                     else
                     {
@@ -325,11 +347,11 @@ namespace SpaceEngineersScripting.TreadMaker
                     // detach new hinges. extend piston 1m. 
                     if (newHinge1 == null)
                     {
-                        _log.AppendLine(prefix + " " + "newHinge1 not found.");
+                        _log.AppendLine(state.Prefix + " " + "newHinge1 not found.");
                     }
                     if (newHinge2 == null)
                     {
-                        _log.AppendLine(prefix + " " + "newHinge2 not found.");
+                        _log.AppendLine(state.Prefix + " " + "newHinge2 not found.");
                     }
                     if (newHinge1 == null || newHinge2 == null)
                     {
@@ -342,7 +364,7 @@ namespace SpaceEngineersScripting.TreadMaker
                         && newHinge1 != null && !newHinge1.IsAttached
                         && newHinge2 != null && !newHinge2.IsAttached)
                     {
-                        newState = 3;
+                        state.State = 3;
                     }
                     else
                     {
@@ -359,7 +381,7 @@ namespace SpaceEngineersScripting.TreadMaker
                     // Attach hinges. 
                     if (newHinge1 != null && newHinge1.IsAttached && newHinge2 != null && newHinge2.IsAttached)
                     {
-                        newState = 4;
+                        state.State = 4;
                     }
                     else
                     {
@@ -368,13 +390,26 @@ namespace SpaceEngineersScripting.TreadMaker
                     }
                     break;
                 case 4:
-                    // Unlock mag plate and extend piston 2m.
+                    // Unlock mag plate and extend piston 2m. Raname new link objects as they are now part of the tread
                     if (pistonGrab1.CurrentPosition == 2.0f
                         && pistonGrab2.CurrentPosition == 2.0f
                         && !magPlate1.IsLocked
                         && !magPlate2.IsLocked)
                     {
-                        newState = 0;
+                        state.NumMade += 1;
+                        if (state.NumMade >= state.MaxLinks)
+                        {
+                            grind.Enabled = false;
+                            state.State = -2;
+                        }
+                        else
+                        {
+                            state.State = 0;
+                        }
+
+                        if (newHinge1 != null) newHinge1.CustomName = state.Prefix + " " + "Hinge Link " + (state.NumMade < 10 ? "0" : "") + state.NumMade + "A";
+                        if (newHinge2 != null) newHinge2.CustomName = state.Prefix + " " + "Hinge Link " + (state.NumMade < 10 ? "0" : "") + state.NumMade + "B";
+                        if (newMagPlate != null) newMagPlate.CustomName = state.Prefix + " " + "MagPlate " + (state.NumMade < 10 ? "0" : "") + state.NumMade;
                     }
                     else
                     {
@@ -387,43 +422,21 @@ namespace SpaceEngineersScripting.TreadMaker
                     }
                     break;
                 default:
-                    _log.AppendLine(prefix + " " + "Invalid state. :(");
+                    _log.AppendLine(state.Prefix + " " + "Invalid state. :(");
                     break;
             }
-
-            return newState;
         }
 
         int WrapTread(string prefix, int state)
         {
-            // Detach 0, 27
-            // Old: (subract 9)
-            // 15 17 21 26 30 32
-            // 15, 32: 90 degrees
-            // 17, 30: 65 degrees
-            // 21 26: 25 degrees
-            // torque: 3000000
-
-            //var hinges6 = GetHinges(6);
-            //var hinges8 = GetHinges(8);
-            //var hinges12 = GetHinges(12);
-            //var hinges17 = GetHinges(17);
-            //var hinges21 = GetHinges(21);
-            //var hinges23 = GetHinges(23);
-
-            //DetachHinges(10);
-            //DetachHinges(28);
-
-
             var mergeTens1 = GridTerminalSystem.GetBlockWithName(prefix + " Merge Tensioner 1") as IMyShipMergeBlock;
             var mergeTens2 = GridTerminalSystem.GetBlockWithName(prefix + " Merge Tensioner 2") as IMyShipMergeBlock;
-            var mergeRoot = GridTerminalSystem.GetBlockWithName(prefix + " Small Merge Block TreadMaker") as IMyShipMergeBlock;
+            var mergeRoot = GridTerminalSystem.GetBlockWithName(prefix + " Merge TreadMaker") as IMyShipMergeBlock;
             var pistTens = GridTerminalSystem.GetBlockWithName(prefix + " Piston Tensioner 2") as IMyPistonBase;
-            var firstLinks = GetHinges(0, prefix);
 
             if (mergeTens1 == null) _log.AppendLine(prefix + " Merge Tensioner 1 not found");
             if (mergeTens2 == null) _log.AppendLine(prefix + " Merge Tensioner 2 not found");
-            if (mergeRoot == null) _log.AppendLine(prefix + " Small Merge Block TreadMaker not found");
+            if (mergeRoot == null) _log.AppendLine(prefix + " Merge TreadMaker not found");
             if (pistTens == null) _log.AppendLine(prefix + " Piston Tensioner 2 not found");
 
             _log.AppendLine(prefix + " Wrap: " + state);
@@ -440,11 +453,11 @@ namespace SpaceEngineersScripting.TreadMaker
                         mergeTens1.Enabled = true;
                         mergeTens2.Enabled = true;
                         pistTens.Velocity = -1.0f;
-                        _log.AppendLine(prefix + " Wrap: 0");
-                        SetHingesTo(GetHinges(5, prefix), 90.0f);
-                        SetHingesTo(GetHinges(7, prefix), 65.0f);
-                        SetHingesTo(GetHinges(11, prefix), 25.0f);
-                        pistTens.Velocity = -1.0f;
+                        SetHingesTo(GetHinges(4, prefix), 20.0f);
+                        SetHingesTo(GetHinges(5, prefix), 45.0f);
+                        SetHingesTo(GetHinges(6, prefix), 45.0f);
+                        SetHingesTo(GetHinges(7, prefix), 45.0f);
+                        SetHingesTo(GetHinges(10, prefix), 25.0f);
                     }
                     break;
                 case 1:
@@ -455,11 +468,13 @@ namespace SpaceEngineersScripting.TreadMaker
                     else
                     {
                         mergeTens2.Enabled = true;
-                        _log.AppendLine(prefix + " Wrap: 1");
                         mergeRoot.Enabled = false;
-                        SetHingesTo(GetHinges(17, prefix), 25.0f);
-                        SetHingesTo(GetHinges(21, prefix), 65.0f);
-                        SetHingesTo(GetHinges(23, prefix), 90.0f);
+                        SetHingesTo(GetHinges(15, prefix), 25.0f);
+                        SetHingesTo(GetHinges(17, prefix), 10.0f);
+                        SetHingesTo(GetHinges(18, prefix), 45.0f);
+                        SetHingesTo(GetHinges(19, prefix), 45.0f);
+                        SetHingesTo(GetHinges(20, prefix), 40.0f);
+                        SetHingesTo(GetHinges(21, prefix), 10.0f);
                     }
                     break;
                 case 2:
@@ -469,20 +484,23 @@ namespace SpaceEngineersScripting.TreadMaker
                     }
                     else
                     {
-                        _log.AppendLine(prefix + " Wrap: 2");
                         // Go Limp, extend tensioner piston(s)
                         GoLimp(prefix);
                         pistTens.Velocity = 1.0f;
                     }
                     break;
                 case 3:
+                    var firstLinks = GetHinges(0, prefix);
+                    if(firstLinks == null || firstLinks[0] == null || firstLinks[1] == null)
+                    {
+                        _errorLog.AppendLine("Cannot find first links when wrapping.");
+                    }
                     if (firstLinks[0].IsAttached || firstLinks[1].IsAttached)
                     {
                         return 4;
                     }
                     else
                     {
-                        _log.AppendLine(prefix + " Wrap: 3");
                         // Connect first link
                         firstLinks[0].Attach();
                         firstLinks[1].Attach();
@@ -496,13 +514,13 @@ namespace SpaceEngineersScripting.TreadMaker
                     }
                     else
                     {
-                        _log.AppendLine(prefix + " Wrap: 4");
                         mergeTens1.Enabled = false;
                         mergeTens2.Enabled = false;
+                        pistTens.Velocity = -1.0f;
                     }
                     break;
                 case -1:
-                    _log.AppendLine(prefix + " Wrap: -1");
+                    _log.AppendLine("Wrap " + prefix + " is done!");
                     return -1;
             }
             return state;
@@ -510,18 +528,14 @@ namespace SpaceEngineersScripting.TreadMaker
 
         void GoLimp(string prefix)
         {
-            var panel = GridTerminalSystem.GetBlockWithName("LCD Panel GoLimp") as IMyTextPanel;
-            panel.WriteText("\r\nGoing Limp " + prefix, true);
-
             var state = _limpState[prefix];
 
             var linkNum = state;
             var count = 0;
             var hinges = GetHinges(linkNum, prefix);
-            // Max of 10 per tick.
+            // Max of N per tick. (was a debugging thing, leaving it in because limiting actions per tick is just nice to do)
             while(hinges != null && hinges.Length == 2 && count < 5)
             {
-                panel.WriteText("\r\n" + prefix + " " + linkNum, true);
                 GoLimp(hinges[0]);
                 GoLimp(hinges[1]);
 
@@ -537,15 +551,6 @@ namespace SpaceEngineersScripting.TreadMaker
             hinge.UpperLimitDeg = 90.0f;
             hinge.RotorLock = false;
             hinge.Enabled = false;
-        }
-
-        void DetachHinges(int num, string prefix)
-        {
-            var hinges = GetHinges(num, prefix);
-
-            for (int i = 0; i < hinges.Length; ++i)
-                if (hinges[i] != null)
-                    hinges[i].Detach();
         }
 
         void SetHingesTo(IMyMotorStator[] hinges, float angle)
@@ -590,28 +595,18 @@ namespace SpaceEngineersScripting.TreadMaker
         bool IsMerged(IMyShipMergeBlock mrg1)
         {
             if (mrg1 == null) return false;
+
             //_log.AppendLine("IsMerged: " + mrg1.CustomName);
-            if (mrg1.IsConnected)
-            {
-                //_log.AppendLine("Block believes it is merged.");
-            }
+            //if (mrg1.IsConnected)
+            //{
+            //    _log.AppendLine("Block believes it is merged.");
+            //}
 
             //Find direction that block merges to
             Matrix mat;
             mrg1.Orientation.GetMatrix(out mat);
+            // Small grid small merge blocks use 'up', everything else uses 'right'
             Vector3I up1 = new Vector3I(mat.Up);
-
-            //if(mrg1.CustomName.Contains("Tensioner 2"))
-            //{
-            //    var directions = new[] { "up", "down", "left", "right", "forward", "backward" };
-
-            //    for (int i = 0; i < directions.Length; ++i)
-            //    {
-            //        if (CheckMerge(mrg1, directions[i]))
-            //            return true;
-            //    }
-            //    return false;
-            //}
 
             //Check if there is a block in front of merge face
             IMySlimBlock sb = mrg1.CubeGrid.GetCubeBlock(mrg1.Position + up1);
@@ -639,60 +634,6 @@ namespace SpaceEngineersScripting.TreadMaker
             return result;
         }
 
-        bool CheckMerge(IMyShipMergeBlock mrg1, string direction)
-        {
-            //Find direction that block merges to
-            Matrix mat;
-            mrg1.Orientation.GetMatrix(out mat);
-
-            var dir = GetDirection(mat, direction);
-
-            //Check if there is a block in front of merge face
-            IMySlimBlock sb = mrg1.CubeGrid.GetCubeBlock(mrg1.Position + dir);
-            if (sb == null)
-            {
-                //_log.AppendLine("CheckMerge: block is null (" + direction + ")");
-                return false;
-            }
-
-            //Check if the other block is actually a merge block
-            IMyShipMergeBlock mrg2 = sb.FatBlock as IMyShipMergeBlock;
-            if (mrg2 == null)
-            {
-                //_log.AppendLine("CheckMerge: block is not merge block (" + direction + ")");
-                return false;
-            }
-
-            //Check that other block is correctly oriented
-            mrg2.Orientation.GetMatrix(out mat);
-            Vector3I dir2 = GetDirection(mat, direction);
-
-            var result = dir2 == -dir;
-            //_log.AppendLine("Block is " + (result ? "" : "NOT ") + "merged. (" + direction + ")");
-
-            return result;
-        }
-
-        Vector3I GetDirection(Matrix mat, string direction)
-        {
-            switch (direction)
-            {
-                case "up":
-                    return new Vector3I(mat.Up);
-                case "down":
-                    return new Vector3I(mat.Down);
-                case "left":
-                    return new Vector3I(mat.Left);
-                case "right":
-                    return new Vector3I(mat.Right);
-                case "forward":
-                    return new Vector3I(mat.Forward);
-                case "backward":
-                    return new Vector3I(mat.Backward);
-            }
-            return new Vector3I(0);
-        }
-
         void WriteLogs()
         {
             Echo(_log.ToString());
@@ -700,7 +641,13 @@ namespace SpaceEngineersScripting.TreadMaker
             if (panel != null)
             {
                 panel.WriteText(_log.ToString(), false);
-                Echo(_log.ToString());
+            }
+
+            Echo(_errorLog.ToString());
+            var errorPanel = GridTerminalSystem.GetBlockWithName("LCD Panel TreadMaker Errors") as IMyTextPanel;
+            if (errorPanel != null)
+            {
+                errorPanel.WriteText(_errorLog.ToString(), false);
             }
         }
         
